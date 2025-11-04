@@ -1,7 +1,10 @@
 import os
+import re
+from typing import List
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
+from pymongo import MongoClient
 from .chatwoot_client import ChatwootClient
 
 load_dotenv()
@@ -14,9 +17,34 @@ CHATWOOT_API_TOKEN = os.getenv("CHATWOOT_API_TOKEN", "")
 client = ChatwootClient(base_url=CHATWOOT_BASE_URL, api_token=CHATWOOT_API_TOKEN)
 
 
+def _get_mongo_client() -> MongoClient:
+    host = os.getenv("MONGODB_HOST")
+    port = int(os.getenv("MONGODB_PORT", "27017"))
+    username = os.getenv("MONGODB_USERNAME")
+    password = os.getenv("MONGODB_PASSWORD")
+    auth_source = os.getenv("MONGODB_AUTH_SOURCE", "admin")
+    return MongoClient(host=host, port=port, username=username, password=password, authSource=auth_source)
+
+
+def _format_tasks(docs: List[dict], email: str) -> str:
+    if not docs:
+        return f"查询邮箱：{email}\n未找到该邮箱的相关任务。"
+
+    lines = [f"查询邮箱：{email}", "最新 5 条任务："]
+    for idx, doc in enumerate(docs, start=1):
+        task_id = doc.get("task_id", "-")
+        status = doc.get("status", "-")
+        req = (doc.get("request") or {})
+        market = req.get("market_type", "-")
+        tic = req.get("tic", "-")
+        lines.append(
+            f"{idx}. 任务ID: {task_id}\n   状态: {status}\n   市场: {market}\n   标的: {tic}"
+        )
+    return "\n".join(lines)
+
+
 @app.post(f"/webhook/chatwoot/telegram/tele_stocktrade")
 async def chatwoot_webhook(request: Request):
-    chat_id = os.getenv("CHAT_ID", {}).get("tele_stocktrade")
     payload = await request.json()
 
     event = payload.get("event")
@@ -37,9 +65,7 @@ async def chatwoot_webhook(request: Request):
         text = (content or "").strip()
 
         if text == "/start":
-            # Send a welcome message back into the conversation via Chatwoot API
             if not (CHATWOOT_API_TOKEN and account_id and conversation_id):
-                # Missing configuration or IDs; return 400 with explanation
                 return JSONResponse(
                     status_code=400,
                     content={
@@ -59,6 +85,73 @@ async def chatwoot_webhook(request: Request):
                     account_id=account_id,
                     conversation_id=conversation_id,
                     content=welcome_text,
+                )
+                return {"status": "ok", "sent_message_id": resp.get("id")}
+            except Exception as e:
+                return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+
+        if text.lower().startswith("/query"):
+            if not (CHATWOOT_API_TOKEN and account_id and conversation_id):
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "status": "error",
+                        "message": "Missing CHATWOOT_API_TOKEN or conversation/account id in payload",
+                        "debug": {
+                            "has_token": bool(CHATWOOT_API_TOKEN),
+                            "account_id": account_id,
+                            "conversation_id": conversation_id,
+                        },
+                    },
+                )
+
+            parts = text.split(maxsplit=1)
+            if len(parts) < 2:
+                usage = "用法：/query 邮箱\n例如：/query user@example.com"
+                try:
+                    resp = await client.create_outgoing_message(
+                        account_id=account_id,
+                        conversation_id=conversation_id,
+                        content=usage,
+                    )
+                    return {"status": "ok", "sent_message_id": resp.get("id")}
+                except Exception as e:
+                    return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+
+            email = parts[1].strip()
+            email_pattern = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+            if not re.match(email_pattern, email):
+                msg = "邮箱格式不正确，请使用类似 user@example.com 的格式。"
+                try:
+                    resp = await client.create_outgoing_message(
+                        account_id=account_id,
+                        conversation_id=conversation_id,
+                        content=msg,
+                    )
+                    return {"status": "ok", "sent_message_id": resp.get("id")}
+                except Exception as e:
+                    return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+
+            try:
+                mongo_client = _get_mongo_client()
+                db_name = os.getenv("MONGODB_DATABASE")
+                coll = mongo_client[db_name]["analysis_tasks"]
+                cursor = coll.find({"request.notify_email": email}).sort("created_time", -1).limit(5)
+                docs = list(cursor)
+                reply_text = _format_tasks(docs, email)
+            except Exception as e:
+                reply_text = f"查询失败：{str(e)}"
+            finally:
+                try:
+                    mongo_client.close()
+                except Exception:
+                    pass
+
+            try:
+                resp = await client.create_outgoing_message(
+                    account_id=account_id,
+                    conversation_id=conversation_id,
+                    content=reply_text,
                 )
                 return {"status": "ok", "sent_message_id": resp.get("id")}
             except Exception as e:
