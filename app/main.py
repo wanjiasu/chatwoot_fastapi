@@ -49,27 +49,41 @@ def _format_tasks(docs: List[dict], email: str) -> str:
     if not docs:
         return f"查询邮箱：{email}\n未找到该邮箱的相关任务。"
 
-    lines = [f"查询邮箱：{email}", "最新 5 条任务："]
+    header_lines = [f"查询邮箱：{email}", "最新 5 条任务："]
+    task_blocks: List[str] = []
+    status_emoji_map = {
+        "completed": "✅",
+        "failed": "❌",
+        "running": "⏳",
+        "queued": "🕒",
+    }
     for idx, doc in enumerate(docs, start=1):
         task_id = doc.get("task_id", "-")
         status = doc.get("status", "-")
         req = (doc.get("request") or {})
         market = req.get("market_type", "-")
         ticker = req.get("ticker", "-")
-        report_url_raw = doc.get("report_url", "-") if status == "completed" else "-"
+        report_url_raw = req.get("report_url", "-") if status == "completed" else "-"
         if status == "completed" and report_url_raw and report_url_raw != "-":
             cleaned_url = _clean_url(report_url_raw)
             if _is_valid_http_url(cleaned_url):
-                # Prefer Telegram Markdown link syntax for better compatibility
                 report_display = f"[点击查看报告]({cleaned_url})"
             else:
                 report_display = "-"
         else:
             report_display = "-"
-        lines.append(
-            f"{idx}. 任务ID: {task_id}\n   状态: {status}\n   市场: {market}\n   代码: {ticker}\n   报告: {report_display}"
+
+        status_emoji = status_emoji_map.get(str(status).lower(), "❔")
+        block = (
+            f"{idx}. 🆔 任务ID: {task_id}\n"
+            f"   状态: {status_emoji} {status}\n"
+            f"   市场: 📈 {market}\n"
+            f"   代码: 🔖 {ticker}\n"
+            f"   报告: 🔗 {report_display}"
         )
-    return "\n".join(lines)
+        task_blocks.append(block)
+
+    return "\n".join(header_lines) + ("\n" if task_blocks else "") + "\n\n".join(task_blocks)
 
 
 @app.post(f"/webhook/chatwoot/telegram/tele_stocktrade")
