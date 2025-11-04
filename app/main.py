@@ -14,8 +14,9 @@ CHATWOOT_API_TOKEN = os.getenv("CHATWOOT_API_TOKEN", "")
 client = ChatwootClient(base_url=CHATWOOT_BASE_URL, api_token=CHATWOOT_API_TOKEN)
 
 
-@app.post("/webhook/chatwoot")
+@app.post(f"/webhook/chatwoot/telegram/tele_stocktrade")
 async def chatwoot_webhook(request: Request):
+    chat_id = os.getenv("CHAT_ID", {}).get("tele_stocktrade")
     payload = await request.json()
 
     event = payload.get("event")

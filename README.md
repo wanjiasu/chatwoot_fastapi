@@ -22,7 +22,7 @@
 
 4. 启动服务：
    ```bash
-   uvicorn app.main:app --reload --port 8003
+   uvicorn app.main:app --reload --port 8100
    ```
 
 5. 本地测试：
