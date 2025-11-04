@@ -1,6 +1,5 @@
 import os
 import re
-import html
 from urllib.parse import urlparse
 from typing import List
 from fastapi import FastAPI, Request
@@ -45,6 +44,17 @@ def _clean_url(url: str) -> str:
     return s
 
 
+def _escape_markdownv2_url(url: str) -> str:
+    # In the (...) of a MarkdownV2 link, escape ')' '(' and '\\'
+    return url.replace("\\", "\\\\").replace(")", "\\)").replace("(", "\\(")
+
+
+def _format_report_display(url: str) -> str:
+    # 始终使用 MarkdownV2 风格锚文本，不依赖环境变量
+    safe = _escape_markdownv2_url(url)
+    return f"[点击查看报告]({safe})"
+
+
 def _format_tasks(docs: List[dict], email: str) -> str:
     if not docs:
         return f"查询邮箱：{email}\n未找到该邮箱的相关任务。"
@@ -68,8 +78,8 @@ def _format_tasks(docs: List[dict], email: str) -> str:
         if status == "completed" and report_url_raw and report_url_raw != "-":
             cleaned_url = _clean_url(report_url_raw)
             if _is_valid_http_url(cleaned_url):
-                # 使用原始 URL，确保 Telegram 自动识别并可点击
-                report_display = cleaned_url
+                # 使用可配置的链接展示（Markdown / HTML），避免显示冗长原始链接
+                report_display = _format_report_display(cleaned_url)
             else:
                 report_display = "-"
         else:
