@@ -73,6 +73,7 @@ def _format_tasks(docs: List[dict], email: str) -> str:
         req = (doc.get("request") or {})
         market = req.get("market_type", "-")
         ticker = req.get("ticker", "-")
+        analysis_date = req.get("analysis_date", "-")
         # 回退逻辑：优先顶层 report_url，其次 request.report_url
         report_url_raw = (doc.get("report_url") or req.get("report_url") or "-") if status == "completed" else "-"
         if status == "completed" and report_url_raw and report_url_raw != "-":
@@ -91,6 +92,7 @@ def _format_tasks(docs: List[dict], email: str) -> str:
             f"   状态: {status_emoji} {status}\n"
             f"   市场: 📈 {market}\n"
             f"   代码: 🔖 {ticker}\n"
+            f"   分析日期: 📅 {analysis_date}\n"
             f"   报告: 🔗 {report_display}"
         )
         task_blocks.append(block)
