@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Environments
+.venv/
+venv/
+env/
+ENV/
+.Python
+
+# Packages & build
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Logs & caches
+*.log
+.cache/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Coverage
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# IDE & OS
+.DS_Store
+.idea/
+.vscode/
+
+# Env files
+.env
+
+# Uvicorn/Starlette
+*~
+
+# Optional: JS projects (if added later)
+node_modules/
