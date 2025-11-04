@@ -1,6 +1,7 @@
 import os
 import re
 import html
+from urllib.parse import urlparse
 from typing import List
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -27,6 +28,23 @@ def _get_mongo_client() -> MongoClient:
     return MongoClient(host=host, port=port, username=username, password=password, authSource=auth_source)
 
 
+def _is_valid_http_url(url: str) -> bool:
+    try:
+        parsed = urlparse(url)
+        return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+    except Exception:
+        return False
+
+
+def _clean_url(url: str) -> str:
+    s = str(url).strip()
+    if not s:
+        return ""
+    # Remove common wrapping characters/backticks and stray angle brackets/spaces
+    s = s.strip("`\"' <>")
+    return s
+
+
 def _format_tasks(docs: List[dict], email: str) -> str:
     if not docs:
         return f"查询邮箱：{email}\n未找到该邮箱的相关任务。"
@@ -38,10 +56,14 @@ def _format_tasks(docs: List[dict], email: str) -> str:
         req = (doc.get("request") or {})
         market = req.get("market_type", "-")
         ticker = req.get("ticker", "-")
-        report_url = doc.get("report_url", "-") if status == "completed" else "-"
-        if status == "completed" and report_url and report_url != "-":
-            safe_url = html.escape(str(report_url), quote=True)
-            report_display = f'<a href="{safe_url}">点击查看报告</a>'
+        report_url_raw = doc.get("report_url", "-") if status == "completed" else "-"
+        if status == "completed" and report_url_raw and report_url_raw != "-":
+            cleaned_url = _clean_url(report_url_raw)
+            if _is_valid_http_url(cleaned_url):
+                # Prefer Telegram Markdown link syntax for better compatibility
+                report_display = f"[点击查看报告]({cleaned_url})"
+            else:
+                report_display = "-"
         else:
             report_display = "-"
         lines.append(
