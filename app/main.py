@@ -63,7 +63,8 @@ def _format_tasks(docs: List[dict], email: str) -> str:
         req = (doc.get("request") or {})
         market = req.get("market_type", "-")
         ticker = req.get("ticker", "-")
-        report_url_raw = req.get("report_url", "-") if status == "completed" else "-"
+        # 回退逻辑：优先顶层 report_url，其次 request.report_url
+        report_url_raw = (doc.get("report_url") or req.get("report_url") or "-") if status == "completed" else "-"
         if status == "completed" and report_url_raw and report_url_raw != "-":
             cleaned_url = _clean_url(report_url_raw)
             if _is_valid_http_url(cleaned_url):
