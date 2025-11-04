@@ -1,5 +1,6 @@
 import os
 import re
+import html
 from typing import List
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -36,9 +37,15 @@ def _format_tasks(docs: List[dict], email: str) -> str:
         status = doc.get("status", "-")
         req = (doc.get("request") or {})
         market = req.get("market_type", "-")
-        tic = req.get("tic", "-")
+        ticker = req.get("ticker", "-")
+        report_url = req.get("report_url", "-") if status == "completed" else "-"
+        if status == "completed" and report_url and report_url != "-":
+            safe_url = html.escape(str(report_url), quote=True)
+            report_display = f'<a href="{safe_url}">点击查看报告</a>'
+        else:
+            report_display = "-"
         lines.append(
-            f"{idx}. 任务ID: {task_id}\n   状态: {status}\n   市场: {market}\n   标的: {tic}"
+            f"{idx}. 任务ID: {task_id}\n   状态: {status}\n   市场: {market}\n   代码: {ticker}\n   报告: {report_display}"
         )
     return "\n".join(lines)
 
@@ -62,6 +69,13 @@ async def chatwoot_webhook(request: Request):
 
     # Only act on incoming user messages
     if event == "message_created" and message_type == "incoming":
+        # Optional: restrict handling to a specific inbox via env var
+        allowed_inbox_id = os.getenv("TELE_STOCKTRADE_INBOX_ID")
+        inbox_id = (conversation or {}).get("inbox_id")
+        if allowed_inbox_id and inbox_id is not None and str(inbox_id) != str(allowed_inbox_id):
+            # Ignore messages from other inboxes
+            return {"status": "ignored", "reason": "inbox_not_allowed", "inbox_id": inbox_id}
+
         text = (content or "").strip()
 
         if text == "/start":
