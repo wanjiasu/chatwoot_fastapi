@@ -143,7 +143,7 @@ async def chatwoot_webhook(request: Request):
                     },
                 )
 
-            welcome_text = "欢迎来到客服！请问有什么可以帮助您？"
+            welcome_text = "欢迎来到客服！您可以输入 /query 邮箱 来查询报告进度。"
             try:
                 resp = await client.create_outgoing_message(
                     account_id=account_id,
