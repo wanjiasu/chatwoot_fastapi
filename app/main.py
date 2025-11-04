@@ -38,7 +38,7 @@ def _format_tasks(docs: List[dict], email: str) -> str:
         req = (doc.get("request") or {})
         market = req.get("market_type", "-")
         ticker = req.get("ticker", "-")
-        report_url = req.get("report_url", "-") if status == "completed" else "-"
+        report_url = doc.get("report_url", "-") if status == "completed" else "-"
         if status == "completed" and report_url and report_url != "-":
             safe_url = html.escape(str(report_url), quote=True)
             report_display = f'<a href="{safe_url}">点击查看报告</a>'
