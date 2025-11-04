@@ -67,7 +67,8 @@ def _format_tasks(docs: List[dict], email: str) -> str:
         if status == "completed" and report_url_raw and report_url_raw != "-":
             cleaned_url = _clean_url(report_url_raw)
             if _is_valid_http_url(cleaned_url):
-                report_display = f"[点击查看报告]({cleaned_url})"
+                # 使用原始 URL，确保 Telegram 自动识别并可点击
+                report_display = cleaned_url
             else:
                 report_display = "-"
         else:
